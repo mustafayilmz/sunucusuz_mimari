@@ -1,0 +1,242 @@
+﻿<html>
+<head>
+<script src="js/jquery-3.2.1.min.js"></script>
+<script src="js/bootstrap.min.js"></script>
+<link href="css/bootstrap.min.css" rel="stylesheet">
+<style>
+#loader {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  z-index: 1;
+  width: 150px;
+  height: 150px;
+  margin: -75px 0 0 -75px;
+  border: 16px solid #f3f3f3;
+  border-radius: 50%;
+  border-top: 16px solid #3498db;
+  width: 120px;
+  height: 120px;
+  -webkit-animation: spin 1.5s linear infinite;
+  animation: spin 1.5s linear infinite;
+}
+@-webkit-keyframes spin {
+  0% { -webkit-transform: rotate(0deg); }
+  100% { -webkit-transform: rotate(360deg); }
+}
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+</style>
+</head>
+<body>
+<div id="loader"></div>
+<div class="container" id="content" style="display:none">
+  <div class="row">
+    <div class="col-sm-12 text-center">
+      <h2>Çalışanlar</h2>  
+    </div>
+  </div>
+  <div class="row">
+    <div class="col-sm-offset-4 col-sm-4">
+      <form id="form">
+        <div class="form-group">
+          <label for="name">İsim</label>
+          <input type="text" class="form-control" id="name" required name="employee_name" placeholder="Çalışanın İsmini Giriniz">
+        </div>
+        <div class="form-group">
+          <label for="price">Maaş</label>
+          <input type="text" class="form-control" id="price" required name="employee_salary" placeholder="Çalışanın Maaşını Giriniz">
+        </div>
+        <div class="form-group">
+          <label for="age">Yaş</label>
+          <input type="text" class="form-control" id="age" required name="employee_age" placeholder="Çalışanın Yaşını Giriniz">
+        </div>
+        <button type="submit" class="btn btn-success">Kaydet</button>
+        <button type="button" class="btn btn-primary disabled" id="cancel">İptal</button>
+      </form> 
+    </div>
+  </div>
+    <div class="row">
+    <div class="col-sm-offset-2 col-sm-8">
+      <table id="employees" class="table table-bordered table-hover">
+      <thead>
+        <tr>
+          <th>İsim</th>
+          <th>Maaş</th>
+          <th>Yaş</th>
+          <th>İşlemler</th>
+        </tr>
+      </thead>
+      <tbody>
+      </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+<script>
+  $(document).ready(function(){
+    $.ajax({
+      url: 'http://127.0.0.1:3000/employees',
+      dataType: 'json',
+      type: 'get',
+      contentType: 'application/json',
+      success: function( data, textStatus, jQxhr ){
+        var rows = dataListToRows(data); 
+        $("#employees tbody").append(rows);
+        showContent();
+      },
+      error: function( jqXhr, textStatus, errorThrown ){
+        alert("failed: " + JSON.stringify(jqXhr) + " ////// " + textStatus + " ////// " + errorThrown);
+      }
+    });
+    $( "#cancel" ).prop( "disabled", true );
+  });
+  
+  var dataId = -1;
+  var updateState = false;
+  
+  $("#form").submit(function(event){
+    event.preventDefault();
+    hideContent();
+    var form = $("#form");
+    if(!updateState){
+      var data = formToJson(form);
+      $.ajax({
+		url: 'http://127.0.0.1:3000/employees',
+		dataType: 'json',
+		type: 'post',
+		contentType: 'application/json',
+		data: data,
+		success: function( data, textStatus, jQxhr ){
+          var newdata = formToObject(form);
+          newdata.id = data.insertId;
+          var rows = dataListToRows([newdata]);
+          $("#form input:text").val("");
+          $("#employees tbody").append(rows);
+          showContent();
+		},
+		error: function( jqXhr, textStatus, errorThrown ){
+          alert("failed: " + JSON.stringify(jqXhr) + " ////// " + textStatus + " ////// " + errorThrown);
+		}
+      });
+    }
+    else{
+      var obj = formToObject(form);
+      obj.id = dataId;
+      var data = JSON.stringify(obj);
+      $.ajax({
+		url: 'http://127.0.0.1:3000/employees',
+		dataType: 'json',
+		type: 'put',
+		contentType: 'application/json',
+		data: data,
+		success: function( data, textStatus, jQxhr ){
+		  data = formToObject(form);
+          var row = dataListToRows([obj]);
+          var tbodyRows = $("#employees tbody tr");
+          for(i = 0; tbodyRows.length; i++){
+            if(tbodyRows[i].firstElementChild.innerText == dataId){
+              $(tbodyRows[i]).after(row);
+              $(tbodyRows[i]).remove();
+              $("#cancel").click();
+              break;
+            }
+          }
+          showContent();
+        },
+		error: function( jqXhr, textStatus, errorThrown ){
+		  alert("failed: " + JSON.stringify(jqXhr) + " ////// " + textStatus + " ////// " + errorThrown);
+		}
+	  });
+    }    
+  });
+  function dataListToRows(data){
+    var rows = ""
+    for(i = 0; i < data.length; i++){
+      rows += "<tr>";
+      rows += "<td style='display:none;'>" + data[i].id + "</td>";
+      rows += "<td>" + data[i].employee_name + "</td>";
+      rows += "<td>" + data[i].employee_salary + "</td>";
+      rows += "<td>" + data[i].employee_age + "</td>";
+      rows += "<td class='col-xs-3' align='center'>" +
+              "<button type='button' class='btn btn-sm btn-primary btn-create' onclick='updateData(this)'>Güncelle</button>" +
+              "<button type='button' class='btn btn-sm btn-danger btn-create' onclick='deleteData(this)'>Sil</button>" +
+            "</td>";
+      rows += "</tr>";
+    }
+    return rows;
+  }
+  function updateData(button){
+    var parent = button.parentElement.parentElement;
+    var childrens = parent.children;
+    dataId = childrens[0].innerText;
+    var employee_name = childrens[1].innerText;
+    var employee_salary = childrens[2].innerText;
+    var employee_age = childrens[3].innerText;
+    $("#form input[name='employee_name']").val(employee_name);
+    $("#form input[name='employee_salary']").val(employee_salary);
+    $("#form input[name='employee_age']").val(employee_age);
+    updateState = true;
+    $("#employees button").addClass("disabled");
+    $( "#employees button" ).prop( "disabled", true );
+    $( "#cancel" ).prop( "disabled", false );
+    $("#cancel").removeClass("disabled");
+  }
+  $("#cancel").click(function(){
+    $("#form input:text").val("");
+    dataId = -1;
+    updateState = false;
+    $("#employees button").removeClass("disabled");
+    $( "#employees button" ).prop( "disabled", false);
+    $("#cancel").addClass("disabled");
+  });
+  function deleteData(button){
+    hideContent();
+    var parent = button.parentElement.parentElement;
+    var id = parent.firstElementChild.innerText;
+    var data = JSON.stringify({"id" : id});
+    $.ajax({
+      url: 'http://127.0.0.1:3000/employees',
+      dataType: 'json',
+      type: 'delete',
+      contentType: 'application/json',
+      data: data,
+      success: function( data, textStatus, jQxhr ){
+        parent.parentElement.removeChild(parent);
+        showContent();
+      },
+      error: function( jqXhr, textStatus, errorThrown ){
+        alert("failed: " + JSON.stringify(jqXhr) + " ////// " + textStatus + " ////// " + errorThrown);
+      }
+    });
+  }
+  function formToObject(form){
+    var data = form.serialize().split("&");
+    var obj={};
+    for(var key in data){
+      obj[data[key].split("=")[0]] = data[key].split("=")[1];
+    }
+    return obj;
+  }
+  function formToJson(form){
+    var data = form.serialize().split("&");
+    var obj={};
+    for(var key in data){
+      obj[data[key].split("=")[0]] = data[key].split("=")[1];
+    }
+    obj = JSON.stringify(obj);
+    return obj;
+  }
+  function hideContent() {
+    document.getElementById("loader").style.display = "block";
+    document.getElementById("content").style.display = "none";
+  }
+  function showContent() {
+    document.getElementById("loader").style.display = "none";
+    document.getElementById("content").style.display = "block";
+  }
+</script>
+</body>
+</html>
